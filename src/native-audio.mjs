@@ -14,7 +14,7 @@ export async function buildNativeAudio(root){
  await exec('/usr/bin/codesign',['--force','--sign','-','--identifier','ai.lingxu.listenflow.audio',binary]);return binary;
 }
 export class NativeAudio extends EventEmitter {
- constructor(binary,folder){super();this.binary=binary;this.folder=folder;this.origins={};this.pending=new Map();this.context=null;}
+ constructor(binary,folder,{platform=process.platform}={}){super();this.binary=binary;this.folder=folder;this.platform=platform;this.origins={};this.pending=new Map();this.context=null;}
  start(){return new Promise((resolve,reject)=>{
   this.child=spawn(this.binary,[this.folder],{stdio:['pipe','pipe','pipe'],env:process.env,windowsHide:true});let pcm=Buffer.alloc(0),stderr='';
   this.child.on('error',reject);this.child.on('exit',code=>{this.exited=true;this.emit('exit',code);if(code&&!this.stopping){const error=new Error(`系统音频进程退出 ${code}`);reject(error);this.emit('failure',error);}});
@@ -34,7 +34,7 @@ export class NativeAudio extends EventEmitter {
  async exportRecording(){
   const tracks={};
   for(const[name,file]of[['microphone','microphone'],['interviewer','interviewer-playback']]){
-   const target=path.join(this.folder,`${name}.wav`);if(process.platform==='darwin')await exec('/usr/bin/afconvert',['-f','WAVE','-d','LEI16@16000','-c','1',path.join(this.folder,`${file}.caf`),target]);const bytes=await readFile(target);
+   const target=path.join(this.folder,`${name}.wav`);if(this.platform==='darwin')await exec('/usr/bin/afconvert',['-f','WAVE','-d','LEI16@16000','-c','1',path.join(this.folder,`${file}.caf`),target]);const bytes=await readFile(target);
    let pcm;for(let p=12;p+8<=bytes.length;){const size=bytes.readUInt32LE(p+4);if(bytes.toString('ascii',p,p+4)==='data'){pcm=bytes.subarray(p+8,p+8+size);break;}p+=8+size+size%2;}if(!pcm)throw new Error('原生录音缺少PCM数据');tracks[name]=pcm;
   }
   const origins=this.origins,start=Math.min(origins.microphone?.host_s??0,origins.interviewer?.host_s??0),offsets={};let frames=0;

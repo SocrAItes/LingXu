@@ -35,10 +35,17 @@ await copyFile(helper, bundledHelper);
 await chmod(bundledHelper, 0o755);
 await writeFile(path.join(runtime, '.cache', 'prebuilt'), '1');
 
-const licenseResponse = await fetch(`https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`);
-if (!licenseResponse.ok) throw new Error('无法获取与内置 Node 版本对应的许可证');
+const licenseUrl = `https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`;
+let nodeLicense;
+try {
+  const response = await fetch(licenseUrl, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error('Node license HTTP error');
+  nodeLicense = await response.text();
+} catch {
+  nodeLicense = (await exec(process.platform === 'win32' ? 'curl.exe' : '/usr/bin/curl', ['--fail', '--location', '--silent', '--show-error', '--max-time', '30', licenseUrl], { windowsHide: true, maxBuffer: 2 * 1024 * 1024 })).stdout;
+}
 await mkdir(path.join(delivery, 'licenses'), { recursive: true });
-await writeFile(path.join(delivery, 'licenses', 'Node.txt'), await licenseResponse.text());
+await writeFile(path.join(delivery, 'licenses', 'Node.txt'), nodeLicense);
 await copyFile(path.join(root, 'node_modules', 'ws', 'LICENSE'), path.join(delivery, 'licenses', 'ws.txt'));
 
 if (process.platform === 'darwin') {
