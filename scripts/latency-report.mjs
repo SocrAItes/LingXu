@@ -1,0 +1,11 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { latencyReport } from '../src/voice-trace.mjs';
+const folder = process.argv[2];
+if (!folder) throw new Error('用法：node scripts/latency-report.mjs data/realtime-traces/<session_id>');
+const events = (await readFile(path.join(folder, 'events.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+const report = latencyReport(events);
+await writeFile(path.join(folder, 'latency.json'), JSON.stringify(report, null, 2));
+console.log(report.interpretation);
+console.table(report.metrics.map(m => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * 100) / 100 : v]))));
+for (const item of report.unavailable) console.log(`${item.metric}：未测得；${item.reason}`);

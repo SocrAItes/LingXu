@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>ai.lingxu.listenflow.audio</string><key>CFBundleName</key><string>真人语音访谈</string><key>CFBundleVersion</key><string>1</string>
+<key>NSMicrophoneUsageDescription</key><string>使用麦克风进行真人语音访谈，并将录音和文字保存在本机。</string>
+</dict></plist>

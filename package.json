@@ -1,0 +1,25 @@
+{
+  "name": "lingxu-listenflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "聆序 ListenFlow — 语音访谈与可追溯的动态问题树",
+  "type": "module",
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "start": "node scripts/human-interview.mjs",
+    "human": "node scripts/human-interview.mjs",
+    "robot": "node scripts/voice-tree-interview.mjs",
+    "check": "node scripts/human-interview.mjs --check-audio",
+    "setup": "node scripts/setup.mjs",
+    "test": "node --test test/*.test.mjs",
+    "package": "node scripts/package.mjs",
+    "audit": "node scripts/audit.mjs",
+    "latency": "node scripts/latency-report.mjs",
+    "tree:review": "node scripts/review-voice-tree.mjs"
+  },
+  "dependencies": {
+    "ws": "8.23.0"
+  }
+}
