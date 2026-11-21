@@ -105,3 +105,10 @@ test('连续无效结构转入受记录的现场生成，不强选候选或中�
   assert.equal(calls,2);assert.equal(result.kind,'fallback');assert.equal(result.code,'invalid_model_decision');
   assert.equal(result.source,'application');assert.match(result.validation_error,/pick/);
 });
+
+test('较长但逐字真实的本轮引文不丢弃有效候选，虚构内容仍不能通过', async () => {
+  const answer='具体省了多久我没计时，印象里以前要折腾一个多小时，那次十来分钟就有了能用的开头。';
+  let calls=0;
+  const result=await selectWithModel(async()=>{calls++;return{value:{anchor:answer,pick:'c1'},record:{}};},pool,prefix,answer,{});
+  assert.equal(calls,1);assert.equal(result.kind,'hit');assert.equal(result.evidence[0].quote,answer);
+});

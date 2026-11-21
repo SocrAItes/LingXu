@@ -159,14 +159,24 @@ export async function generateFresh(call, { role, runtime, brief, prefix, answer
   const turns = [...prefix, { id: `t${prefix.length + 1}`, role: 'participant', text: answer }];
   let messages = interviewerMessages({ role, runtime, brief, turns, remaining: Math.max(1, 12 - Math.ceil(prefix.length / 2)) });
   if (policyConcern(answer)) messages[0].content += '\n\n本次运行尚未配置正式研究协议、记录保管负责人、保留期限或授权撤回流程。受访者现在询问这些信息。必须先说明具体政策尚需确认，暂停本次访谈并交由操作者说明：action=finish。不编造保管责任，不承诺随时撤回或任何未配置的处理能力，不继续业务提问。';
+  const originalMessages = messages;
   const attempts = [], start = performance.now();
-  for (let i = 0; i < 2; i++) {
-    const result = await call('on_demand_interviewer', messages, { maxTokens: 1000 }); attempts.push(result.record);
+  for (let i = 0; i < 3; i++) {
+    let result;
     try {
+      result = await call('on_demand_interviewer', messages, { maxTokens: 1000 }); attempts.push(result.record);
       const d = validateDecision(result.value, turns, 12);
       if (policyConcern(answer) && (d.action !== 'finish' || !/需要确认|需确认|尚未|还未|暂未|还没|不清楚|无法确认|确认后|先.{0,8}确认/.test(d.utterance) || /随时可以|由研究团队保管|我们保证|一定可以/.test(d.utterance))) throw new Error('访谈政策尚未配置，必须明确需要确认并暂停，不能作保管或撤回承诺');
       return { question: d.utterance, action: d.action, topic: d.topic, flags: [...d.qualityIssues, ...qualityFlags(d.utterance)], basis: d.basis, generationMs: Math.round(performance.now() - start), attempts };
-    } catch (e) { if (i) throw e; messages = [...messages, { role: 'assistant', content: JSON.stringify(result.value) }, { role: 'user', content: `应用校验未通过：${e.message}。重新生成，不能虚构原话。` }]; }
+    } catch (e) {
+      if (!result && e.record) attempts.push(e.record);
+      if (e.name === 'AbortError' || (!result && !e.record) || i === 2) throw e;
+      // Do not feed a rejected question back as an assistant turn: small models
+      // otherwise tend to copy it again instead of moving the interview forward.
+      const asked = prefix.filter(t => t.role === 'interviewer');
+      const counts = Object.fromEntries(Object.keys(brief.topics || {}).map(topic => [topic, asked.filter(t => t.topic === topic).length]));
+      messages = [...originalMessages, { role: 'user', content: JSON.stringify({ application_validation_error: e.message, rejected_question: result?.value?.utterance || null, latest_real_answer: answer, questions_already_asked: asked.map(t => t.text), question_counts_by_topic: counts, instruction: '上个输出无效，不可复用。根据完整前文和最新回答，生成一个尚未问过且答案尚未知的新问题。不要重新征询同意，不重复询问已讲清的帮助。可优先转向尚未涉及的研究话题，但不得假设对方有某段经历。问题必须由你生成；原话编号仅用已有受访者编号。计数只说明问过多少次，不代表话题已完成。仍按规定JSON输出。' }) }];
+    }
   }
 }
 

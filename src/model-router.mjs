@@ -65,7 +65,9 @@ export async function selectWithModel(call, pool, prefix, answer, brief, options
       if (available.some(c => c.id === d.pick)) {
         if (d.text || d.topic) throw new Error('选择候选时只返回anchor和pick，不重写问题');
         const normalize = s => s.normalize('NFKC').replace(/\s+/g, '');
-        if (typeof d.anchor !== 'string' || d.anchor.trim().length < Math.min(4, answer.trim().length) || d.anchor.length > 30 || !normalize(answer).includes(normalize(d.anchor))) throw new Error('anchor必须逐字来自本轮回答，不得引用旧回答或虚构原话');
+        // A longer literal quote is verbose, but not fabricated evidence. Do not
+        // discard an otherwise valid choice solely for exceeding the short-quote target.
+        if (typeof d.anchor !== 'string' || d.anchor.trim().length < Math.min(4, answer.trim().length) || d.anchor.length > 200 || !normalize(answer).includes(normalize(d.anchor))) throw new Error('anchor必须逐字来自本轮回答，不得引用旧回答或虚构原话');
         return { ...common(), ...output(), kind: 'hit', code: 'model_selected', candidate: pool.candidates.find(c => c.id === d.pick), evidence: [{ turn_id: inputTurn.id, quote: d.anchor }], evidence_source: 'model_quote_validated_against_current_answer', reason: `模型选择${d.pick}`, reason_source: 'application' };
       }
       if (!['new', 'finish'].includes(d.pick)) throw new Error('pick不是可用候选编号、new或finish');

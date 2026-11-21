@@ -78,3 +78,20 @@ test('候选适用条件来自模型，提前准备的输入仍不包含未来�
   assert.equal(pool.candidates[0].use_when,'提到操作但未说明步骤');
   assert.equal(pool.candidates[1].use_when,'提到阻碍但未说明应对');
 });
+
+test('连续重复问题恢复后使用新的研究问题，保留最新回答且不将错误问题作为助手历史', async () => {
+  let calls=0;
+  const p=prefix.map(t=>({...t,topic:'workflow'}));
+  const result=await generateFresh(async(_,messages)=>{
+    calls++;
+    if(calls>1){
+      const recovery=JSON.parse(messages.at(-1).content);
+      assert.equal(recovery.latest_real_answer,'初稿确实快了一些');
+      assert.ok(recovery.questions_already_asked.includes(prefix.at(-1).text));
+      assert.equal(recovery.question_counts_by_topic.friction,0);
+      assert.equal(messages.length,2+p.length+1);
+    }
+    return{value:{action:'ask',utterance:calls<3?prefix.at(-1).text:'后续使用还有哪些地方不太顺手？',topic:calls<3?'workflow':'friction',basis_turn_ids:['t4']},record:{attempt:calls}};
+  },{role:'访谈员',runtime:'规则',brief:{topics:{workflow:'实际使用',friction:'阻碍'}},prefix:p,answer:'初稿确实快了一些'});
+  assert.equal(calls,3);assert.equal(result.attempts.length,3);assert.equal(result.topic,'friction');
+});
