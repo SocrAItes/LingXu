@@ -169,7 +169,7 @@ npm start -- --rounds 8
 
 Ollama 调用原生 `/api/chat` 并设置 `think:false`；其他服务调用 `/chat/completions` 并传递 `chat_template_kwargs.enable_thinking:false`。兼容服务应支持禁用思考及完整 JSON 输出。私有配置不会启动、下载或修改第三方模型服务。
 
-你的服务器应对客户端可达，并提供 `/models` 健康检查与模型列表接口；不要将未经授权的服务暴露到公网。`MOSS_API_KEY` 和文字模型密钥互不通用。
+你的服务器应对客户端可达，并提供 `/models` 健康检查接口；Ollama 会检查模型列表，部分 MLX 服务返回空的 HTTP 200 时由实际推理请求校验模型；不要将未经授权的服务暴露到公网。`MOSS_API_KEY` 和文字模型密钥互不通用。
 
 ## 测试与打包
 
