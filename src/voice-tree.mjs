@@ -32,16 +32,22 @@ export class VoiceTree {
       const step = this.steps.at(-1), prefix = this.turns.map(t => ({ ...t }));
       const a = { id: `t${this.turns.length + 1}`, role: 'participant', text: answer.trim() }; this.turns.push(a); step.answer = a;
       const mustEnd = this.steps.length >= this.maxRounds || /结束访谈|不想聊了|停止访谈|到此为止/.test(answer);
-      if (mustEnd) next = { ...await this.generate(0, 'interviewer_closing'), source: 'generated_closing' };
+      if (mustEnd) {
+        this.preparation?.abort.abort();
+        next = { ...await this.generate(0, 'interviewer_closing'), source: 'generated_closing' };
+      }
       else {
-        const waitStarted = performance.now(); const prepared = await this.poolTask;
+        const waitStarted = performance.now();
+        const prepared = this.preparation?.status === 'ready' ? this.preparation.result : null;
+        if (this.preparation?.status === 'pending') this.preparation.abort.abort();
         step.pool_wait_ms = performance.now() - waitStarted;
         if (prepared?.pool?.contextHash === contextHash(prefix)) {
           step.pool = prepared.pool;
           step.selection = await selectWithModel(this.call, step.pool, prefix, a.text, this.brief);
           if (step.selection.kind === 'hit') { const c = step.selection.candidate; next = { action: 'ask', utterance: c.question, topic: c.topic, source: 'prepared_candidate', candidateId: c.id }; }
+          else if (step.selection.kind === 'generated') next = { action: 'ask', utterance: step.selection.question, topic: step.selection.topic, source: 'router_generated' };
           else if (step.selection.kind === 'finish') next = { action: 'finish', utterance: step.selection.utterance, source: 'model_router' };
-        } else step.selection = { source: 'application', kind: 'fallback', code: prepared?.error ? 'pool_failed' : 'stale_or_missing_pool', reason: prepared?.error || '语音实际表达改变了候选上下文，重新根据实际对话生成' };
+        } else step.selection = { source: 'application', kind: 'fallback', code: this.preparation?.status === 'pending' ? 'pool_not_ready' : prepared?.error ? 'pool_failed' : 'stale_or_missing_pool', reason: prepared?.error || '候选未就绪或实际对话改变，直接根据实际回答生成' };
         if (!next) { const fresh = await generateFresh(this.call, { role: this.role, runtime: this.runtime, brief: this.brief, prefix, answer: a.text }); next = { ...fresh, utterance: fresh.question, source: 'on_demand' }; }
       }
       step.next = next;
@@ -53,7 +59,13 @@ export class VoiceTree {
       this.turns.push(q); this.steps.push({ index: this.steps.length + 1, question: q, answer: null, selection: null, pool: null, next: null });
       // Runs while MOSS speaks and the other robot answers. Never uses that future answer.
       const prefix = this.turns.map(t => ({ ...t }));
-      this.poolTask = this.steps.length > 1 && this.steps.length < this.maxRounds ? generatePool(this.call, { role: this.role, brief: this.brief, prefix, strategy: PLAN_STYLES[0] }).then(pool => ({ pool }), error => ({ error: error.message })) : null;
+      this.preparation = null;
+      if (this.steps.length > 1 && this.steps.length < this.maxRounds) {
+        const task = { status: 'pending', abort: new AbortController(), result: null };
+        this.preparation = task;
+        const call = (actor, messages, options) => { task.abort.signal.throwIfAborted(); return this.call(actor, messages, { ...options, signal: task.abort.signal }); };
+        this.poolTask = generatePool(call, { role: this.role, brief: this.brief, prefix, strategy: PLAN_STYLES[0] }).then(pool => ({ pool }), error => ({ error: error.message })).then(result => { task.result = result; task.status = 'ready'; return result; });
+      } else this.poolTask = null;
     }
     this.trace('tree.decision.completed', { round: this.steps.length, duration_ms: performance.now() - started, action: next.action, source: next.source });
     await this.changed(this.snapshot());

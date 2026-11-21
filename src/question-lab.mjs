@@ -53,7 +53,7 @@ export function plannerMessages({ role, brief, prefix, strategy, avoidQuestions 
   if (strategy) {
     const slots = rollingSlots(prefix);
     return [
-      { role: 'system', content: `${role}\n\n你在提前准备一个很小的访谈问题池：一个主问题和两个不同方向的备选。当前问题已问出，受访者还没回答。只用已发生的前文和研究目标，不读未来回答或私有人物档案。\n本版本采用“${strategy.name}”：${strategy.description}\n不要展开整棵树，不要模拟受访者回答。三个问题应体现本版本的访谈思路，互不重复，不重复已经问过的问题；使用具体的开放式问法，不用“有没有”“是否”“是不是”“是A还是B”等封闭或诱导问法。不要假设未知价格、日期、客户反应或技术原因。每个问题只问一件事，不超过 60 字。\n只输出一个 JSON 对象，恰好三个字符串字段：main、backup_a、backup_b。每个字段只写一个完整问题。` },
+      { role: 'system', content: `${role}\n\n你在提前准备一个很小的访谈问题池：一个主问题和两个不同方向的备选。当前问题已问出，受访者还没回答。只用已发生的前文和研究目标，不读未来回答或私有人物档案。\n本版本采用“${strategy.name}”：${strategy.description}\n不要展开整棵树，不要模拟受访者回答。三个问题应体现本版本的访谈思路，互不重复，不重复已经问过的问题；使用具体的开放式问法，不用“有没有”“是否”“是不是”“是A还是B”等封闭或诱导问法。不要假设未知价格、日期、客户反应或技术原因。每个问题只问一件事，不超过 60 字。\n只输出一个 JSON 对象，恰好六个字符串字段：main、backup_a、backup_b 是完整问题，main_when、backup_a_when、backup_b_when 是对应问题的使用条件（不超过25字）。条件写明回答中需要出现什么具体线索，不能只写“有困难”或“有帮助”，不把假设条件当作已发生的回答。` },
       { role: 'user', content: JSON.stringify({ research: brief, known_conversation: prefix.map(({ id, role, text }) => ({ id, role, text })), response_directions: slots.map(({ key, label, signals }) => ({ key, label, signals })), other_version_questions_to_avoid: avoidQuestions }) },
     ];
   }
@@ -144,7 +144,7 @@ export async function generatePool(call, inputs) {
         const used = new Set(inputs.avoidQuestions.map(questionKey));
         pool.candidates = pool.candidates.map(c => ({ ...c, sharedWithOtherVersion: used.has(questionKey(c.question)) }));
       }
-      if (slots) pool.candidates = pool.candidates.map((c, i) => ({ ...c, label: `${i === 0 ? '主线' : `备选 ${i}`} · ${slots[i].label}`, priority: slots[i].priority }));
+      if (slots) pool.candidates = pool.candidates.map((c, i) => ({ ...c, use_when: typeof result.value[slots[i].key + '_when'] === 'string' ? result.value[slots[i].key + '_when'].slice(0, 80) : undefined, label: `${i === 0 ? '主线' : `备选 ${i}`} · ${slots[i].label}`, priority: slots[i].priority }));
       return { ...pool, policy: slots ? 'one_primary_two_backups' : 'legacy_four_directions', prepareMs: Math.round(performance.now() - start), attempts, createdAt: new Date().toISOString() };
     } catch (e) {
       if (e.record) attempts.push(e.record);

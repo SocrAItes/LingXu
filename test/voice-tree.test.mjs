@@ -7,7 +7,7 @@ function setup(maxRounds = 8) {
   const call = async (actor, messages) => {
     calls.push({ actor, messages });
     if (actor === 'candidate_planner') { const i=++generated;return { value:{main:`第${i}种操作具体怎么做？`,backup_a:`第${i}个困难怎么处理？`,backup_b:`第${i}次后续如何选择？`},record:{} }; }
-    if (actor === 'branch_selector') { const input=JSON.parse(messages[1].content);return { value:{action:'select',candidate_id:'c1',utterance:null,basis_turn_ids:[input.latest_answer.id],reason:'承接实际回答，继续了解操作。'},record:{} }; }
+    if (actor === 'branch_selector') return { value:{anchor:JSON.parse(messages[1].content).latest_answer.slice(0,12),pick:'c1'},record:{} };
     if (actor === 'interviewer_closing') return { value:{action:'finish',utterance:'谢谢，今天先到这里。',topic:'closing',basis_turn_ids:[]},record:{} };
     return { value:{action:'ask',utterance:actor==='interviewer_opening'?'愿意聊聊这段经历吗？':`第${++generated}次具体发生了什么？`,topic:actor==='interviewer_opening'?'opening':'workflow',basis_turn_ids:[]},record:{} };
   };
@@ -37,4 +37,28 @@ test('没有语音转写时不得推进，实际语音改写后旧候选不能�
   await brain.next('这是真实语音回答');
   assert.equal(calls.filter(c=>c.actor==='branch_selector').length,0);
   assert.equal(brain.steps[1].selection.code,'stale_or_missing_pool');assert.equal(brain.steps[1].question.matches_plan,false);
+});
+
+test('模型同次生成的新问题直接进入树，不再调用第二次现场生成', async () => {
+  const {brain,calls}=setup(4),original=brain.call;
+  brain.call=async(actor,messages,options)=>actor==='branch_selector'?{value:{pick:'new',text:'共享时最需要保留哪些信息？',topic:'workflow'},record:{}}:original(actor,messages,options);
+  await brain.next();await brain.next('愿意聊');await brain.poolTask;
+  const before=calls.filter(c=>c.actor==='on_demand_interviewer').length;
+  const next=await brain.next('我们想了解团队共享');
+  assert.equal(next.utterance,'共享时最需要保留哪些信息？');
+  assert.equal(calls.filter(c=>c.actor==='on_demand_interviewer').length,before);
+  assert.equal(brain.steps[1].next.source,'router_generated');
+  await brain.poolTask;
+});
+
+test('候选未准备好时取消后台请求并继续，不等待问题池完成', {timeout:1000}, async () => {
+  const {brain,calls}=setup(3),original=brain.call;let aborted=false;
+  brain.call=(actor,messages,options)=>actor==='candidate_planner'?new Promise((resolve,reject)=>{
+    options.signal.addEventListener('abort',()=>{aborted=true;reject(options.signal.reason);},{once:true});
+  }):original(actor,messages,options);
+  await brain.next();await brain.next('愿意聊');const previous=brain.poolTask;
+  const next=await brain.next('我已经回答完了');await previous;
+  assert.equal(aborted,true);assert.equal(next.action,'ask');
+  assert.equal(brain.steps[1].selection.code,'pool_not_ready');
+  assert.equal(calls.filter(c=>c.actor==='branch_selector').length,0);
 });

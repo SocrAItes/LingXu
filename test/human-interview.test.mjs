@@ -20,3 +20,21 @@ test('真人模式只将实际ASR交给树，不加载受访者卡片，并保�
  const trajectory=JSON.parse(await readFile(path.join(session.folder,'决策轨迹.json'),'utf8'));assert.deepEqual(trajectory.steps[0].asr_source.asr_event_ids,['asr-2']);assert.equal(trajectory.steps[1].answer_used.text,'我最近用工具整理了会议记录。');
  const frozen=JSON.parse(await readFile(path.join(session.folder,'frozen-inputs.json'),'utf8'));assert.equal(frozen.robotPersonaUsed,false);assert.equal(frozen.artificialHumanDelayMs,0);
 });
+
+test('真人控制器把问题池取消信号传给模型请求，不被会话信号覆盖', {timeout:2000}, async t=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'human-cancel-test-'));await mkdir(path.join(root,'roles'));await mkdir(path.join(root,'prompts'));
+ await copyFile(new URL('../roles/许知.md',import.meta.url),path.join(root,'roles/许知.md'));await copyFile(new URL('../prompts/interviewer-text.txt',import.meta.url),path.join(root,'prompts/interviewer-text.txt'));
+ let preparationSignal,count=0;
+ const client=async(actor,messages,options)=>{
+  if(actor==='candidate_planner')return new Promise((resolve,reject)=>{preparationSignal=options.signal;options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});});
+  return {value:{action:'ask',utterance:actor==='interviewer_opening'?'愿意聊聊吗？':`第${++count}次具体发生了什么？`,topic:actor==='interviewer_opening'?'opening':'workflow',basis_turn_ids:[]},record:{}};
+ };
+ const session=new HumanInterview({root,key:'not-recorded',maxRounds:3,send:()=>{},peerFactory:()=>new Socket(),callFactory:()=>client,autoAdvanceMs:60000,tts:async()=>{}});
+ t.after(async()=>{await session.end('test_complete');await session.tree?.poolTask;await session.serial;await session.journal?.flush();session.peer?.close();await rm(root,{recursive:true,force:true});});
+ await session.start();await session.playback({action:'playback.completed',run_id:session.playbackRun});
+ session.provider({action:'input.transcript.done',data:{turn:'one',text:'愿意聊。'}});await session.commit();assert.equal(preparationSignal.aborted,false);
+ await session.playback({action:'playback.completed',run_id:session.playbackRun});
+ session.provider({action:'input.transcript.done',data:{turn:'two',text:'已经说完了。'}});await session.commit();
+ assert.equal(preparationSignal.aborted,true);assert.equal(session.abort.signal.aborted,false);
+ assert.equal(session.tree.steps[1].selection.code,'pool_not_ready');
+});

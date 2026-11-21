@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validatePool, routeCandidate, plannerMessages, generatePool, generateFresh } from '../src/question-lab.mjs';
+import { validatePool, routeCandidate, plannerMessages, generatePool, generateFresh, PLAN_STYLES } from '../src/question-lab.mjs';
 const prefix = [
   { id: 't1', role: 'interviewer', text: '最近一次使用是什么时候？' },
   { id: 't2', role: 'participant', text: '前几天，用一个工具做海报。' },
@@ -68,4 +68,13 @@ test('没有配置访谈政策时，拒绝编造保管责任或授权承诺', as
     return { value: { action: 'finish', utterance: attempts === 1 ? '记录由研究团队保管，您随时可以撤回授权。' : '这些具体政策还需要确认，我们先暂停访谈。', topic: 'closing', basis_turn_ids: [] }, record: { durationMs: 1 } };
   }, { role: '访谈员', runtime: '规则', brief: { goal: '研究工具' }, prefix, answer: '我想知道访谈记录由谁保管，以及是否可以撤回授权。' });
   assert.equal(attempts, 2); assert.equal(result.action, 'finish'); assert.match(result.question, /需要确认/);
+});
+
+test('候选适用条件来自模型，提前准备的输入仍不包含未来回答', async () => {
+  const pool=await generatePool(async(actor,messages)=>{
+    assert.doesNotMatch(JSON.stringify(messages),/FUTURE_PRIVATE_492/);
+    return {value:{main:'具体操作过程是什么？',main_when:'提到操作但未说明步骤',backup_a:'遇到阻碍后怎样处理？',backup_a_when:'提到阻碍但未说明应对',backup_b:'后续选择时考虑什么？',backup_b_when:'提到后续使用的取舍'},record:{}};
+  },{role:'访谈员',brief:{goal:'研究工具'},prefix,strategy:PLAN_STYLES[0],answer:'FUTURE_PRIVATE_492'});
+  assert.equal(pool.candidates[0].use_when,'提到操作但未说明步骤');
+  assert.equal(pool.candidates[1].use_when,'提到阻碍但未说明应对');
 });

@@ -61,6 +61,8 @@ macOS 首次源码运行会调用 Swift 编译音频桥，需要 Xcode Command L
 
 默认研究主题是“设计 AI 的付费价值与续费决策”。可修改 `src/text-interview.mjs` 的 `TEXT_BRIEF`、`roles/许知.md` 和 `prompts/interviewer-text.txt` 来更换访谈任务。`roles/林舟.md` 只供机器人模拟；真实受访者没有预设回答。
 
+文字选路采用短原话与候选编号，不适用时在同一次调用中生成新问题。明确纠正、换对象或换话题会停用旧候选，未完成的候选准备可取消。[文字对照实验](docs/decision-benchmarks.md)记录了响应等待、额外准备成本和当前限制。
+
 ## 运行命令
 
 | 命令 | 用途 |
