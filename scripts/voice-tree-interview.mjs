@@ -19,7 +19,7 @@ await loadConfig();
 await ensureLocalModel();
 const option = (name, fallback) => { const i = process.argv.indexOf(name); return i < 0 ? fallback : process.argv[i + 1]; };
 const maxRounds = Number(option('--rounds', 8));
-const respondentReplyDelayMs=Number(process.env.RESPONDENT_REPLY_DELAY_MS??500);
+const respondentReplyDelayMs=Number(process.env.RESPONDENT_REPLY_DELAY_MS??0);
 if(!Number.isFinite(respondentReplyDelayMs)||respondentReplyDelayMs<0||respondentReplyDelayMs>5000)throw new Error('受访者开口延迟须为0～5000毫秒');
 if (!Number.isInteger(maxRounds) || maxRounds < 2 || maxRounds > 12) throw new Error('--rounds 需要为2～12');
 const key = process.env.MOSS_API_KEY; if (!key) throw new Error('需要在本机 config.env 配置 MOSS_API_KEY');
@@ -33,7 +33,9 @@ for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{failure ||= `收
 const trace = (stage, data = {}) => journal.mark(stage, data);
 const read = file => readFile(path.join(root, file), 'utf8');
 const [interviewerRole, interviewerRuntime, respondentRole, respondentRuntime] = await Promise.all([read('roles/许知.md'), read('prompts/interviewer-text.txt'), read('roles/林舟.md'), read('prompts/respondent-runtime.txt')]);
-const voices = { interviewer: { id: process.env.INTERVIEWER_VOICE || FEMALE_INTERVIEWER_VOICE.id, name: !process.env.INTERVIEWER_VOICE || process.env.INTERVIEWER_VOICE===FEMALE_INTERVIEWER_VOICE.id ? FEMALE_INTERVIEWER_VOICE.name : '自定义音色' }, respondent: { id: process.env.RESPONDENT_VOICE || '531a0774-0417-41e4-8a70-3593b1a32e34', name: '青年音' } };
+const voiceNames = new Map([[FEMALE_INTERVIEWER_VOICE.id,FEMALE_INTERVIEWER_VOICE.name],['531a0774-0417-41e4-8a70-3593b1a32e34','青年音'],['d683998f-d9ea-4216-a018-e58cdc42db73','温柔专业青女'],['5e2e4b81-3f26-4c58-afe4-eb8ed342393f','最真人']]);
+const voice = id => ({ id, name: voiceNames.get(id) || '自定义音色' });
+const voices = { interviewer: voice(process.env.INTERVIEWER_VOICE || FEMALE_INTERVIEWER_VOICE.id), respondent: voice(process.env.RESPONDENT_VOICE || '531a0774-0417-41e4-8a70-3593b1a32e34') };
 const inputs = { interviewer: new Map(), respondent: new Map() }, outputRuns = new Map();
 let latestAsrAt = 0, interviewer, respondent, toInterviewer, toRespondent;
 const client = makeQwenClient({ base: process.env.TEXT_MODEL_BASE_URL || 'http://127.0.0.1:11434/v1', model: process.env.TEXT_MODEL || 'qwen3:8b', apiKey: process.env.TEXT_MODEL_API_KEY,
