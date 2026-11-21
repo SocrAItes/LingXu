@@ -1,6 +1,6 @@
 {
   "name": "lingxu-listenflow",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "聆序 ListenFlow — 语音访谈与可追溯的动态问题树",
   "type": "module",

@@ -10,6 +10,7 @@ const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 if (!['darwin', 'win32'].includes(process.platform)) throw new Error('请在目标 macOS / Windows 上构建');
 const { version } = JSON.parse(await readFile(path.join(root, 'package.json')));
+const branding = path.join(root, 'assets', 'branding');
 // Use the system temporary directory: macOS app signing requires a native filesystem.
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'lingxu-build-'));
 const name = `LingXu-${process.platform === 'darwin' ? 'macos' : 'windows'}-${process.arch}`;
@@ -51,18 +52,21 @@ await copyFile(path.join(root, 'node_modules', 'ws', 'LICENSE'), path.join(deliv
 if (process.platform === 'darwin') {
   const contents = path.join(app, 'Contents');
   await mkdir(path.join(contents, 'MacOS'), { recursive: true });
+  await copyFile(path.join(branding, 'app.icns'), path.join(resources, 'LingXu.icns'));
   await writeFile(path.join(contents, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable</key><string>ListenFlow</string><key>CFBundleIdentifier</key><string>ai.lingxu.listenflow</string><key>CFBundleName</key><string>聆序 ListenFlow</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>${version}</string><key>CFBundleShortVersionString</key><string>${version}</string><key>LSUIElement</key><true/><key>NSMicrophoneUsageDescription</key><string>使用麦克风进行访谈，并在本机保存录音、识别文本和决策轨迹。</string></dict></plist>`);
+  await exec('/usr/bin/plutil', ['-insert', 'CFBundleIconFile', '-string', 'LingXu.icns', path.join(contents, 'Info.plist')]);
   await exec('/usr/bin/swiftc', [path.join(root, 'native', 'AppLauncher.swift'), '-o', path.join(contents, 'MacOS', 'ListenFlow'), '-framework', 'Cocoa', '-module-cache-path', path.join(root, '.cache', 'swift-modules')]);
   await exec('/usr/bin/xattr', ['-cr', app]);
   await exec('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);
   await exec('/usr/bin/codesign', ['--verify', '--strict', app]);
 } else {
   const compiler = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
-  await exec(compiler, ['/nologo', '/target:winexe', `/out:${path.join(delivery, 'LingXu.exe')}`, path.join(root, 'native', 'windows', 'Launcher.cs')], { windowsHide: true });
+  await exec(compiler, ['/nologo', '/target:winexe', `/win32icon:${path.join(branding, 'app.ico')}`, `/out:${path.join(delivery, 'LingXu.exe')}`, path.join(root, 'native', 'windows', 'Launcher.cs')], { windowsHide: true });
   // PyInstaller bundles the Python runtime; retain dependency license texts too.
   await exec('python', [path.join(root, 'scripts', 'windows-licenses.py'), path.join(delivery, 'licenses')], { windowsHide: true });
 }
 await copyFile(path.join(root, 'README.md'), path.join(delivery, 'README.md'));
+await cp(branding, path.join(delivery, 'assets', 'branding'), { recursive: true, filter });
 await cp(path.join(root, 'docs'), path.join(delivery, 'docs'), { recursive: true, filter });
 await writeFile(path.join(delivery, '使用说明.txt'), '聆序 ListenFlow\n\n先按 docs/deployment.md 配置本机 MOSS API 和文字模型。\n程序内置 Node 运行时，不包含 API 密钥或模型权重。\n双击 LingXu.app / LingXu.exe 启动，无访谈界面。\n听完问题直接回答，说“结束访谈”结束并导出。\n录音和日志位置见部署文档。\n');
 // Check the packaged program, with no credentials or device capture.

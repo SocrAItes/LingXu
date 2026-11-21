@@ -1,4 +1,7 @@
-聆序 ListenFlow 首个打包版本。
+聆序 ListenFlow v0.1.2。
+
+- 使用新的紫色分支 Logo，更新仓库首页展示。
+- macOS 应用内置 ICNS 图标，Windows 启动程序内嵌 ICO 图标。
 
 - macOS Apple Silicon / Intel 与 Windows x64 原生启动程序。
 - 真人访谈、候选问题预生成、根据真实 ASR 动态选路。

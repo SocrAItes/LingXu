@@ -1,5 +1,7 @@
 # 聆序 · ListenFlow
 
+<img src="assets/branding/logo.png" alt="聆序 LingXu Logo" width="128" />
+
 根据受访者的真实回答，动态选择下一问的语音访谈 Demo。
 
 聆序把提问过程保留为一棵可追溯的问题树：采访员说出问题时，文字模型提前准备多个候选追问；收到真实语音识别结果后，模型检查候选是否适合当前回答，选择已有问题，或现场生成新问题。录音、原始识别事件、模型输入输出、实际走过的路径及阶段时延一起保存在本机。
@@ -80,6 +82,7 @@ src/                  访谈控制、问题树、模型调用、语音、时延�
 scripts/              真人 / 机器人入口、配置、构建与检查
 native/               macOS Swift 音频桥与启动器
 native/windows/       Windows WASAPI 音频桥与无窗口启动器
+assets/branding/      项目 Logo、macOS ICNS 与 Windows ICO
 roles/                采访员和模拟受访者人物卡
 prompts/              访谈规则
 test/                 识别关联、选路、音频及模型客户端回归测试
